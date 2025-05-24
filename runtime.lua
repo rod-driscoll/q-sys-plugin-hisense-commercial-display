@@ -97,7 +97,20 @@
   	MuteOn      ={Command=0x26,Data='\x01'},       -- DD FF 00 07 C1 26 00 00 01 01 E0 BB CC 
   	MuteOff     ={Command=0x26,Data='\x00'},       -- DD FF 00 07 C1 26 00 00 01 00 E1 BB CC
   }
-  
+    
+  -- create a table of items that require querying on connect
+  local PropertiesToGet = { "Status", "InputStatus", "PanelStatus", "MACAddress", "SWVersion", "SerialNumber", "DeviceName", "ModelName", "ModelNumber" }
+  local StatusToGet = { "Status", "InputStatus", "PanelStatus" } -- , "VolumeStatus" } -- no VolumeStatus
+
+  -- create a queue of commands, these commands will be iteratively called after connection when the regular command queue is empty
+  local PollQueueCurrent = {}
+  local function LoadPollQueue(items) -- need to copy items by value instead of reference
+  	if DebugFunction then print("LoadPollQueue(#"..(items and #items or 'nil')..")") end
+    local queue = {}
+    for k,v in pairs(items) do table.insert(queue, v) end
+    return queue
+  end 
+
   -- Helper functions
   -- A function to determine common print statement scenarios for troubleshooting
   function SetupDebugPrint()
@@ -210,6 +223,7 @@
   -- Shared interface functions
   function Init()
   	if DebugFunction then print("Init() Called") end
+    PollQueueCurrent = LoadPollQueue(PropertiesToGet)
   	Disconnected()
    	Connect()
   end
@@ -219,8 +233,15 @@
   	CommunicationTimer:Stop()
   	Heartbeat:Start(PollRate)
   	CommandProcessing = false
+    PollQueueCurrent = LoadPollQueue(PropertiesToGet)
     if #CommandQueue<1 then 
-      Send( Request["Status"] )
+      --Send( Request["Status"] )
+      if #PollQueueCurrent>0 then 
+        --if DebugFunction then print("#PollQueueCurrent: "..#PollQueueCurrent) end
+        local item = table.remove(PollQueueCurrent)
+        --if DebugFunction then print("item "..(item and 'exists' or 'is nil')) end  
+        Send( Request[item] )
+      end
   	else
       SendNextCommand()
     end
@@ -261,11 +282,16 @@
   --  ints must be between 0 and 255 for hex translation
   --  Broadcast is a Boolean to determine if using Broadcast ID for this send
   function Send(cmd, sendImmediately)
-    if DebugFunction then print(string.format("Send(\\x%02X, %s) Called",cmd.Command, sendImmediately)) end
+    if DebugFunction then 
+      for k,v in pairs(Request) do
+        if v.Command == cmd.Command then
+          print(string.format("Send[\\x%02X](%s, %s) Called", cmd.Command, k, sendImmediately))
+        break end
+      end
+    end
   	local ID = Controls["DisplayID"].Value
   	local value = string.char(#cmd.Data+6).."\xC1"..string.char(cmd.Command).."\x00"..string.char(cmd.Data2 or 0x00)..string.char(ID)..cmd.Data
-   
-  	if DebugTx then PrintByteString(value, "String requiring checksum: ") end
+  	--if DebugTx then PrintByteString(value, "String requiring checksum: ") end
     local checksum = 0
     for i=1, #value do checksum = checksum ~ value:byte(i) end
   	--if DebugTx then print("checksum: "..checksum) end
@@ -285,7 +311,7 @@
   		end
   	end
   	--Queue the command if it wasn't found
-  	if DebugTx then PrintByteString(value, "Queueing: ") end
+  	--if DebugTx then PrintByteString(value, "Queueing: ") end
   	table.insert(CommandQueue,value)
   	SendNextCommand()
   end
@@ -418,7 +444,7 @@
   	-- Create Sockets
   	Device = TcpSocket.New()
   	Device.ReconnectTimeout = 5
-  	Device.ReadTimeout = 10  --Tested to verify 6 seconds necessary for input switches;  Appears some TV behave mroe slowly
+  	Device.ReadTimeout = 10  --Tested to verify 6 seconds necessary for input switches;  Appears some TV behave more slowly
   	Device.WriteTimeout = 10
   	udp = UdpSocket.New()
   	
@@ -562,9 +588,10 @@
     function SetPowerOn(ctl)
   		if DebugFunction then print("PowerOn Ethernet Handler Called") end
   		--MAC from device is sent as string text, needs translation
-  		if Controls["MACAddress"].String:len()==12 then
+			local macstr = Controls["MACAddress"].String
+			if macstr:len()>12 then macstr = macstr:gsub(":",""):gsub("-","") end
+  		if macstr:len()==12 then
   			local mac = ""
-  			local macstr = Controls["MACAddress"].String
   			local localIPAddress = nil
   			local broadcastRange = "255.255.255.255"
   			local deviceIpValue = IPV4ToValue(IPAddress.String)
@@ -686,7 +713,7 @@
       if DebugFunction then print("ASCII RX ["..#msg.."]: "..msg) end
   		if DisplaySeries == "Auto" then DisplaySeries = "BM" end
  		  if msg:match('232 time out') then
-        print('ERROR received, Device ID['..string.format("%.0f", Controls["DisplayID"].Value)..'] is probably wrong.')
+        print('ERROR received.')
        	DataBuffer = ""
       return end
       msg = msg:gsub(" ","") -- remove spaces because "%S+" isn't working to ignore spaces
@@ -694,7 +721,7 @@
     else
       if DebugFunction then print("String RX ["..#str.."]: "..str) end
       if str:match('No Client Input,Please input command\x0a') then
-        print('ERROR received, Device ID['..string.format("%.0f", Controls["DisplayID"].Value)..'] is probably wrong.')
+        print('ASCII message received')
         if DisplaySeries == "Auto" then DisplaySeries = "BM" end
         DataBuffer = ""
       return end
@@ -747,7 +774,7 @@
       ResponseObj['CheckSumTotal']=0
     
       --if DebugFunction and DebugRx then PrintByteString(ResponseObj['Data'], "Data: ") end
-  		--Read the data bytes into the data array (Ack/Nack and Cmd are part of the data length)
+  		--Read the data bytes into the data array
   		if ResponseObj['DataLength']>5 then
   			for i=1, (ResponseObj['DataLength']) do
   				--table.insert( ResponseObj['Data'], msg:byte(i+DataStartBytePos) )
@@ -771,13 +798,24 @@
       local remaining = msg:sub(7+ResponseObj['DataLength'],-1)
       --PrintByteString(remaining, "Re-process any remaining data: ")
   		ParseResponse( remaining )
-  	end  
+  	end 
+    if #CommandQueue<1 then
+      if #PollQueueCurrent==0 then PollQueueCurrent = LoadPollQueue(StatusToGet) end
+      local item = table.remove(PollQueueCurrent)
+      Send( Request[item] )
+    end 
   end
   
   -- Handler for good data from interface
   function HandleResponse(msg)
-  	if DebugFunction then print(string.format("HandleResponse(\\x%02X) Called", msg.Command)) end
-    --if DebugFunction and DebugRx then PrintByteString(msg.Data, "Data: ") end
+  	if DebugFunction then 
+      for k,v in pairs(Request) do
+        if v.Command == msg.Command then
+          print(string.format("HandleResponse[\\x%02X](%s) Called", msg.Command, k))
+        break end
+      end
+    --if DebugRx then PrintByteString(msg.Data, "Data: ") end
+    end
   
   	--Serial Number / DeviceName (both use the same .Command)
   	if msg["Command"]==Request.SerialNumber.Command then
@@ -926,7 +964,7 @@
   			Send( Request["InputSet"] )
   		end
   	end
-  end
+  end 
 
 	Controls["Input"].EventHandler = function(ctl)
 		if DebugFunction then print("Input["..ctl.String.."] Choice") end
@@ -1029,14 +1067,13 @@
   	end
   end
   
-  -- Kick it off 
+  -- Kick it off
   SetupDebugPrint()
-  --wait half a sec because plugins sometimes restart a few times at boot
   if not StartupTimer:IsRunning() then
-    StartupTimer.EventHandler = function()
-      print("StartupTimer expired")
-      Init()
-      StartupTimer:Stop()
-    end
-    StartupTimer:Start(0.5)
+      StartupTimer.EventHandler = function()
+        print("StartupTimer expired")
+        Init()
+        StartupTimer:Stop()
+      end
+      StartupTimer:Start(2)
   end
