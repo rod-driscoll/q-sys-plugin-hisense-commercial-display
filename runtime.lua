@@ -590,7 +590,7 @@
   		--MAC from device is sent as string text, needs translation
 			local macstr = Controls["MACAddress"].String
 			if macstr:len()>12 then macstr = macstr:gsub(":",""):gsub("-","") end
-  		if macstr:len()==12 then
+			if not Device.IsConnected and macstr:len()==12 then
   			local mac = ""
   			local localIPAddress = nil
   			local broadcastRange = "255.255.255.255"
@@ -636,7 +636,7 @@
   
   		PowerupTimer:Stop()
   		Send( Request["PowerOn"], true )
-  		--Also send the MDC command in case of broadcast awake signal
+  		--Also send the command in case of broadcast awake signal
   		PowerupCount = 0
   		PowerupTimer:Start(2)
   		PowerOnDebounce = true
