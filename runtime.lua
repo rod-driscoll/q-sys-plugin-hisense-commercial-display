@@ -99,8 +99,8 @@
   }
     
   -- create a table of items that require querying on connect
-  local PropertiesToGet = { "Status", "InputStatus", "PanelStatus", "MACAddress", "SWVersion", "SerialNumber", "DeviceName", "ModelName", "ModelNumber" }
-  local StatusToGet = { "Status", "InputStatus", "PanelStatus" } -- , "VolumeStatus" } -- no VolumeStatus
+  local PropertiesToGet = { "Status", "InputStatus", "MACAddress", "SWVersion", "SerialNumber", "DeviceName", "ModelName", "ModelNumber" }
+  local StatusToGet = { "Status", "InputStatus" } -- , "VolumeStatus" } -- no VolumeStatus -- never send "PanelStatus", it causes the device to reboot and erase
 
   -- create a queue of commands, these commands will be iteratively called after connection when the regular command queue is empty
   local PollQueueCurrent = {}
@@ -127,11 +127,22 @@
   	end
   end
   
+	local function RemoveValuesByName(tbl, toRemove)
+    for i,v in pairs(tbl) do
+			if v == toRemove then
+				return table.remove(tbl, i)
+			end
+    end
+		return nil
+	end
+
   -- A function to clear controls/flags/variables and clears tables
   function ClearVariables()
   	if DebugFunction then print("ClearVariables() Called") end
   	DataBuffer = ""
   	CommandQueue = {}
+		-- Add all the properties to the query queue whenever IP settings change. We clear this as they are populated in to reduce traffic
+		PropertiesToGet = { "Status", "InputStatus", "PanelStatus", "MACAddress", "SWVersion", "SerialNumber", "DeviceName", "ModelName", "ModelNumber" }
   end
   
   --Reset any of the "Unavailable" data;  Will cause a momentary colision that will resolve itself the customer names the device "Unavailable"
@@ -674,7 +685,7 @@
   		if(Controls["MACAddress"].String == "") then Send( Request["MACAddress"] )  end
     	if(Controls["SerialNumber"].String == "") then Send( Request["SerialNumber"] )  end
   		if(Controls["DeviceFirmware"].String == "") then Send( Request["SWVersion"] ) end
-  		if(Controls["ModelNumber"].String == "") then Send( Request["ModelNumber"] ) end -- actually brand
+  		if(Controls["ModelNumber"].String == "") then Send( Request["ModelNumber"] ) end
   		if(Controls["ModelName"].String == "") then Send( Request["ModelName"] )  end
   	end
   end
@@ -799,11 +810,13 @@
       --PrintByteString(remaining, "Re-process any remaining data: ")
   		ParseResponse( remaining )
   	end 
+		--[-[ if this is commented out it is to reduce polling, the displays lose commes if you send too much data.
     if #CommandQueue<1 then
       if #PollQueueCurrent==0 then PollQueueCurrent = LoadPollQueue(StatusToGet) end
       local item = table.remove(PollQueueCurrent)
       Send( Request[item] )
     end 
+		--]]
   end
   
   -- Handler for good data from interface
@@ -823,10 +836,12 @@
         if DebugFunction then PrintByteString(msg['Data'], "SerialNumber response received: ") end
         if msg['Ack'] then Controls["SerialNumber"].String = msg["Data"]
         else               Controls["SerialNumber"].String = "Unavailable" end
+ 				RemoveValuesByName(PropertiesToGet, "SerialNumber") -- no need to query this again unless IP settings change
       elseif Request.DeviceName.Data2 == msg.Data2 then
         if DebugFunction then PrintByteString(msg['Data'], "DeviceName response received: ") end
         if msg['Ack'] then Controls["DeviceName"].String = msg["Data"]
         else               Controls["DeviceName"].String = "Unavailable" end
+ 				RemoveValuesByName(PropertiesToGet, "DeviceName") -- no need to query this again unless IP settings change
       else
         if DebugFunction then PrintByteString(msg['Data'], "Unhandled Device info response received: ") end
       end
@@ -838,17 +853,20 @@
         if msg['Ack'] then Controls["ModelName"].String = msg["Data"]
           PluginInfo.Model = Controls["ModelName"].String
         else               Controls["ModelName"].String = "Unavailable" end
+ 				RemoveValuesByName(PropertiesToGet, "ModelName") -- no need to query this again unless IP settings change
       elseif Request.ModelNumber.Data2 == msg.Data2 then
         if DebugFunction then PrintByteString(msg['Data'], "ModelNumber response received: ") end
         if msg['Ack'] then Controls["ModelNumber"].String = msg["Data"]
         else               Controls["ModelNumber"].String = "Unavailable" end
+ 				RemoveValuesByName(PropertiesToGet, "ModelNumber") -- no need to query this again unless IP settings change
       end
-  
+ 
   	--SW Version
   	elseif msg["Command"]==Request.SWVersion.Command then
       if DebugFunction then PrintByteString(msg['Data'], "Software version response received: ") end
   		if msg['Ack'] then Controls["DeviceFirmware"].String = string.format("%02d/%02d/%02d",msg["Data"]:byte(3),msg["Data"]:byte(2),msg["Data"]:byte(1))
   		else               Controls["DeviceFirmware"].String = "Unavailable" end
+			RemoveValuesByName(PropertiesToGet, "SWVersion") -- no need to query this again unless IP settings change
   
   	--Input source Control response
   	elseif msg["Command"]==Request.InputStatus.Command then --or msg["Command"]==Request.InputSet.Command then
@@ -869,8 +887,9 @@
   		else
   			Controls["MACAddress"].String = "Unavailable"
   		end
-  	
-  	-- Catch NACK responses that aren't handled
+			RemoveValuesByName(PropertiesToGet, "MACAddress") -- no need to query this again unless IP settings change
+
+					-- Catch NACK responses that aren't handled
   	elseif not msg["Ack"] then
   		print("Nack response received for command "..msg["Command"])
   

@@ -1,6 +1,7 @@
 --[[
   20250306 v1.0 Rod Driscoll<rod@theavitgroup.com.au>
   Hisense BM Series TV IP protocol.
+  Source code location: <https://github.com/rod-driscoll/q-sys-plugin-hisense-commercial-display>
 
   This script communicates with the IP Control App on the Hisense BM/DM series TV, so make sure the APP is enabled
   This should work on the WR Interactive and M series, however inputs may not line up on both series.
@@ -22,6 +23,8 @@
   ~ DM series successfully queried device info such as MacAddress and other details
   ~ BM series does not recognise device info queries.
   ~ Volume ramping is not smooth because the display doesn't respond promptly and the plugin waits for a response before sending the next command
+  ~ Never request PanelStatus, it causes the device to reboot and erase
+  ~ Displays disconnect and refuse to reconnect if polled too often, so only polling for device info when IP settings are changed.
 
   Used Hisense Commercial Display plugin as a template.
 ]]
