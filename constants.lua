@@ -1,36 +1,24 @@
 local InputCount = 7
-local InputTypes = { -- Response from poll
-  {Name="Menu"        , Value='\x05\x00'}, -- TODO: confirm on TV
-  {Name="PC"          , Value='\x05\x01'},
-  {Name="DVI"         , Value='\x05\x02'},
-  {Name="Display Port", Value='\x05\x03'},
-  {Name="HDMI 1"      , Value='\x05\x04'},
-  {Name="HDMI 2"      , Value='\x05\x05'},
-  {Name="VGA"         , Value='\x08\x01'},
+local InputTypes = {
+  --[[ Attempted to create a default selection.
+    At run time replace entries with different values if they conflict
+    Due to a complete in-consistency in the protocols there is no guarantee
+      the inputs will be correct on a device prior to physical testing]]
+  {Name="Menu"        , Tx='\x00', Rx={ '\x05\x03\x00' } },
+  {Name="PC"          , Tx='\x0C', Rx={ '\x05\x03\x01', '\x05\x00' } },
+  {Name="DVI"         , Tx='\x09', Rx={  } },
+  {Name="Display Port", Tx='\x16', Rx={ '\x05\x03\x02', '\x05\x03' } },
+  {Name="HDMI 1"      , Tx='\x0E', Rx={ '\x05\x03\x04', '\x05\x07', '\x0E' } },
+  {Name="HDMI 2"      , Tx='\x0F', Rx={ '\x05\x03\x03', '\x05\x06', '\x0F' } },
+  {Name="VGA"         , Tx='\x17', Rx={ '\x06\x04\x00', '\x08\x01' } },
+  {Name="HDMI Front"  , Tx='\x05', Rx={                 '\x05\x05', '\x17' } }, -- 2 word Rx is repeat of DVI
+  {Name="HDMI Side"   , Tx='\x06', Rx={                 '\x05\x04' } },
+  {Name="Type-C"      , Tx='\x0B', Rx={                 '\x05\x09', '\x0C' } },
+  {Name="HDMI"        , Tx='\x08', Rx={  } },
+  {Name="OPS"         , Tx='\x04', Rx={  } },
+  {Name="USB"         , Tx='\x0C', Rx={  } },
+  {Name="Home"        , Tx='\x14', Rx={  } },
+  {Name="CMS"         , Tx='\x15', Rx={  } },
+  {Name="PDF"         , Tx='\x17', Rx={  } }, -- Tx is repeat of VGA
+  {Name="Custom"      , Tx='\x18', Rx={  } },
 }
-
-local AlternativeInputNames = { -- documented (badly)
-  {Name="DVI"         , Value='\x09', ButtonIndex=3},
-  {Name="PC"          , Value='\x0c', ButtonIndex=2},
-  {Name="HDMI 1"      , Value='\x0e', ButtonIndex=5},
-  {Name="HDMI 2"      , Value='\x0f', ButtonIndex=6},
-  {Name="Display Port", Value='\x16', ButtonIndex=4},
-  {Name="VGA"         , Value='\x17', ButtonIndex=7},
-}
-
-function GetInputIndex(val)
-  if DebugFunction then PrintByteString(val, 'GetInputIndex(): ') end
-  for i,input in ipairs(InputTypes) do
-    if(input.Value == val)then
-      if DebugFunction then print('GetInputIndex('..i..') InputTypes: '..input.Name) end
-      for j,k in ipairs(AlternativeInputNames) do
-        if(k.Name == input.Name)then
-          if DebugFunction then print('GetInputIndex('..j..') AlternativeInputNames: '..input.Name) end
-          return j, input.Name
-        end
-      end
-      return i, input.Name
-    end
-  end
-end
-

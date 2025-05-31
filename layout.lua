@@ -74,7 +74,7 @@ elseif CurrentPage == "Control" then
   table.insert(graphics,{Type="Text",Text="Current Input",Position={12,174},Size={75,20},FontSize=12,HTextAlign="Right", VTextAlign="Middle", Color=colors.Text})
   layout["Input"] = {PrettyName="Input~Current Input", Style="ComboBox", FontColor=colors.Black, FontSize=14, Position={88,174} , Size={211,20} }
   local i,j=0,0
-  for val,input in pairs(AlternativeInputNames) do
+  for val,input in pairs(InputTypes) do
     if (i+(j*4)) < InputCount then
       table.insert(graphics,{Type="Text",Text=input.Name,Position={12+(73*i),195+j*45},Size={71,22},FontSize=10,Color=colors.Text,HTextAlign="Center", VTextAlign="Bottom"})
       layout["InputButtons "..(j*4+1+i)] = {PrettyName="Input~"..input.Name, Style="Button", UnlinkOffColor=true, Color=colors.Blue, OffColor=colors.Button, FontColor=colors.White, FontSize=14, Position={15+(73*i), 215+j*45}, Size={65,25} }

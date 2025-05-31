@@ -11,6 +11,7 @@
 
   Developer notes:
   ~ tested on a 100BM66D (BM Series) with firmware dated 01/02/24 (dd/mm/yy):
+  ~ tested on a 55GM50D (GM Series)
     ~ tested with LAN control only, serial control not tested; the documentation suggests it uses the same protocol.
     ~ 33 seconds from WoL to TCP socket connected
     ~ 10 seconds from connected to remote disconnect, so if polling > 10 secs it never requests status
@@ -25,14 +26,20 @@
   ~ Volume ramping is not smooth because the display doesn't respond promptly and the plugin waits for a response before sending the next command
   ~ Never request PanelStatus, it causes the device to reboot and erase
   ~ Displays disconnect and refuse to reconnect if polled too often, so only polling for device info when IP settings are changed.
+  ~ serial not tested, baud documented as 115200n81
 
   Used Hisense Commercial Display plugin as a template.
+  
+  20250530 v1.0.1 Rod Driscoll<rod@theavitgroup.com.au>
+  ~ Changed input mapping, the documented protocols are moslty incorrect.
+    ~ Documented BM series input commands correct but responses are incorrect
+    ~ Documented DM series input commands and responses are incorrect
 ]]
 
 PluginInfo = {
   Name = "Hisense~BM/DM Series Display v1.0",
-  Version = "1.0",
-  BuildVersion = "1.0.0.0",
+  Version = "1.0.1",
+  BuildVersion = "1.0.1",
   Id = "Hisense BM/DM Series Display v1.0",
   Author = "Rod Driscoll<rod@theavitgroup.com.au>",
   Description = "Control and Status for Hisense BM/DM Series Displays.",

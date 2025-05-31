@@ -25,6 +25,6 @@ table.insert(props,{
 table.insert(props,{
   Name    = "Display Series",
   Type    = "enum",
-  Choices = {"BM", "DM", "E", "Auto" },
+  Choices = {"BM", "DM", "GM", "M", "WR", "MR", "Auto" }, --"E" not implemented yet
   Value   = "Auto"
 })

@@ -1,7 +1,7 @@
 PluginInfo = {
   Name = "Hisense~BM/DM Series Display v1.0-DEV-UI",
-  Version = "1.0",
-  BuildVersion = "1.0.0.0",
+  Version = "1.0.1",
+  BuildVersion = "1.0.1.0",
   Id = "Hisense BM/DM Series Display v1.0-DEV-UI",
   Author = "Rod Driscoll<rod@theavitgroup.com.au>",
   Description = "Control and Status for Hisense BM/DM Series Displays.",
@@ -13,23 +13,28 @@ PluginInfo = {
 
 -- Constant Values to use
 local InputCount = 7
-local InputTypes = { -- Response from poll
-  {Name="Menu"        , Value='\x05\x00'}, -- TODO: confirm on TV
-  {Name="PC"          , Value='\x05\x01'},
-  {Name="DVI"         , Value='\x05\x02'},
-  {Name="Display Port", Value='\x05\x03'},
-  {Name="HDMI 1"      , Value='\x05\x04'},
-  {Name="HDMI 2"      , Value='\x05\x05'},
-  {Name="VGA"         , Value='\x08\x01'},
-}
-
-local AlternativeInputNames = { -- documented (badly)
-  {Name="DVI"         , Value='\x09'},
-  {Name="PC"          , Value='\x0c'},
-  {Name="HDMI 1"      , Value='\x0e'},
-  {Name="HDMI 2"      , Value='\x0f'},
-  {Name="Display Port", Value='\x16'},
-  {Name="VGA"         , Value='\x17'},
+local InputTypes = {
+  --[[ Attempted to create a default selection.
+    At run time replace entries with different values if they conflict
+    Due to a complete in-consistency in the protocols there is no guarantee
+      the inputs will be correct on a device prior to physical testing]]
+  {Name="Menu"        , Tx='\x00', Rx={ '\x05\x03\x00' } },
+  {Name="PC"          , Tx='\x0C', Rx={ '\x05\x03\x01', '\x05\x00', '\x0C' } },
+  {Name="DVI"         , Tx='\x09', Rx={ '\x05\x03\x02', '\x05\x05' } },
+  {Name="Display Port", Tx='\x16', Rx={ '\x05\x03\x02', '\x05\x03' } },
+  {Name="HDMI 1"      , Tx='\x0E', Rx={ '\x05\x03\x04', '\x05\x07', '\x0E' } },
+  {Name="HDMI 2"      , Tx='\x0F', Rx={ '\x05\x03\x03', '\x05\x06', '\x0F' } },
+  {Name="VGA"         , Tx='\x17', Rx={ '\x06\x04\x00', '\x08\x01' } },
+  {Name="HDMI Front"  , Tx='\x05', Rx={                 '\x05\x05', '\x17' } }, -- 2 word Rx is repeat of DVI
+  {Name="HDMI Side"   , Tx='\x06', Rx={                 '\x05\x04' } },
+  {Name="Type-C"      , Tx='\x0B', Rx={                 '\x05\x09', '\x0C' } },
+  {Name="HDMI"        , Tx='\x08', Rx={  } },
+  {Name="OPS"         , Tx='\x04', Rx={  } },
+  {Name="USB"         , Tx='\x0C', Rx={  } },
+  {Name="Home"        , Tx='\x14', Rx={  } },
+  {Name="CMS"         , Tx='\x15', Rx={  } },
+  {Name="PDF"         , Tx='\x17', Rx={  } }, -- Tx is repeat of VGA
+  {Name="Custom"      , Tx='\x18', Rx={  } },
 }
 
 function GetColor(props)
@@ -78,7 +83,7 @@ function GetProperties()
   table.insert(props,{
     Name  = "Display Series",
     Type    = "enum",
-    Choices = {"BM", "DM", "E", "Auto" },
+    Choices = {"BM", "DM", "GM", "Auto" },
     Value   = "Auto"
   })
 	return props
@@ -460,7 +465,7 @@ function GetControlLayout(props)
     table.insert(graphics,{Type="Text",Text="Current Input",Position={12,174},Size={75,20},FontSize=12,HTextAlign="Right", VTextAlign="Middle", Color=colors.Text})
     layout["Input"] = {PrettyName="Input~Current Input", Style="ComboBox", FontColor=colors.Black, FontSize=14, Position={88,174} , Size={211,20} }
     local i,j=0,0
-    for val,input in pairs(AlternativeInputNames) do
+    for val,input in pairs(InputTypes) do
       if (i+(j*4)) < InputCount then
         table.insert(graphics,{Type="Text",Text=input.Name,Position={12+(73*i),195+j*45},Size={71,22},FontSize=10,Color=colors.Text,HTextAlign="Center", VTextAlign="Bottom"})
         layout["InputButtons "..(j*4+1+i)] = {PrettyName="Input~"..input.Name, Style="Button", UnlinkOffColor=true, Color=colors.Blue, OffColor=colors.Button, FontColor=colors.White, FontSize=14, Position={15+(73*i), 215+j*45}, Size={65,25} }

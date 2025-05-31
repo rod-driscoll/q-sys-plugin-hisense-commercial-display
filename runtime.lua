@@ -15,8 +15,8 @@
   local DebugRx = false
   local DebugFunction = true
   DebugPrint = Properties["Debug Print"].Value
-  DisplaySeries = Properties["Display Series"].Value
-   
+	local DisplaySeries = Properties["Display Series"].Value == "Auto" and "GM" or Properties["Display Series"].Value
+
   -- Timers, tables, and constants
   StatusState = { OK = 0, COMPROMISED = 1, FAULT = 2, NOTPRESENT = 3, MISSING = 4, INITIALIZING = 5 }
   Heartbeat = Timer.New()
@@ -39,35 +39,7 @@
   PowerOnDebounceTime = 20
   PowerOnDebounce = false
   TimeoutCount = 0
-  ActiveInput = 1
-  for i=1,#Controls['InputButtons'] do
-  	if Controls['InputButtons'][i].Boolean then
-  		ActiveInput = i
-  	end
-  end
-  
-  InputCount = 0
-  for i,_ in ipairs(InputTypes) do InputCount = i end 
-  local choices = {}
-  for _,v in ipairs(AlternativeInputNames) do table.insert(choices, v.Name) end 
-	Controls["Input"].Choices = choices
 
-  function GetInputIndex(val)
-    if DebugFunction then PrintByteString(val, 'GetInputIndex(): ') end
-    for i,input in ipairs(InputTypes) do
-      if(input.Value == val)then
-        if DebugFunction then print('GetInputIndex('..i..') InputTypes: '..input.Name) end
-        for j,k in ipairs(AlternativeInputNames) do
-          if(k.Name == input.Name)then
-            if DebugFunction then print('GetInputIndex('..j..') AlternativeInputNames: '..input.Name) end
-            return j, input.Name
-          end
-        end
-        return i, input.Name
-      end
-    end
-  end
-  
   --[[
   	Request Command Set
   	Named reference to each of the command objects used here in
@@ -97,10 +69,223 @@
   	MuteOn      ={Command=0x26,Data='\x01'},       -- DD FF 00 07 C1 26 00 00 01 01 E0 BB CC 
   	MuteOff     ={Command=0x26,Data='\x00'},       -- DD FF 00 07 C1 26 00 00 01 00 E1 BB CC
   }
-    
+
+--[[ Protocols compiled from several documents. Not all is implemented by either this plugin or the actual devices
+	-- From RS232 doc E SERIES | M SERIES | WR SERIES
+	-- E-Series ----------------------------------------
+		Baud: 115200n81
+		port 5000 HEX
+		HDMI1 -0x0D - A6 01 00 00 00 04 01 AC 0D 03 Response: 210100000401000025 Query Response: 210100000401AD0D85
+		HDMI2 -0x06 - A6 01 00 00 00 04 01 AC 06 08
+		CMS   -0x15 - A6 01 00 00 00 04 01 AC 15 1B
+		Media -0x16 - A6 01 00 00 00 04 01 AC 16 18
+		Custom-0x18（available only when set in Setting menu)
+		USB   -0x0C
+		OPS   -0x0B
+		PDF   -0x17
+		Home  -0x14
+	-- M-Series v1.5 ----------------------------------------
+		Baud: 9600n81
+		HDMI1: 0E Query Response: 05 03 04  
+		HDMI2: 0F Query Response: 05 03 03
+		DP:    16 Query Response: 05 03 02
+		VGA:   17 Query Response: 06 04 00
+		Query TV status has different values for source
+	-- M Series v1.0 ----------------------------------------
+		HDMI: 08 - DD FF 00 07 C1 08 00 00 01 08 C7 BB CC
+		DP:   16 - DD FF 00 07 C1 08 00 00 01 16 D9 BB CC
+		DVI:  09 - DD FF 00 07 C1 08 00 00 01 09 C6 BB CC
+		VGA:  17 - DD FF 00 07 C1 08 00 00 01 17 D8 BB CC  
+		PC:   0C - DD FF 00 07 C1 08 00 00 01 0C C3 BB CC
+	-- WR6CE/WR6BE ----------------------------------------
+		Baud: 9600n81
+		Front HDMI: 0x05 - DD FF 00 07 C1 08 00 00 01 05 CA BB CC
+		Side HDMI:  0x06 - DD FF 00 07 C1 08 00 00 01 06 C9 BB CC
+		VGA:        0x07 - DD FF 00 07 C1 08 00 00 01 07 C8 BB CC
+		DP:         0x0C ? DD FF 00 07 C1 08 00 00 01 0B C4 BB CC -- discrepancy between docs
+		Type-C:     0x0B
+		OPS:        0x04
+		Query TV status :
+			AB AB 00 0C 28 00 00 xx zz zz zz zz zz zz yy CD CD 
+			zz: volume 
+			zz zz: 05 01 - PC, 05 02 - DVI, 05 03 - DP, 05 04 - HDMI2, 05 05 - HDMI1, 08 01 - VGA 
+	-- MR6DE/MR6DE-E ----------------------------------------
+		Front HDMI: 0x1A Response: 0x17
+		Side HDMI1: 0x24 Response: 0x0E
+		Side HDMI2: 0x25 Response: 0x0F
+		PC:         0x0C Response: 0x0C
+		Type-C:     0x1C Response: 0x17
+		Query TV status:
+			AB AB 00 0C 28 00 00 xx zz zz zz zz zz zz yy CD CD 
+			zz: volume 
+			zz zz: 05 01 - PC, 05 06 – side HDMI1, 05 07 – side HDMI2, 05 08 – front HDMI1, 05 09 – Type-c 
+	-- DM/GM Series ----------------------------------------
+		port 8088 ASCII
+		Platform Name Product Name              System Version
+		MTK9666       32/43/50/55/65/75/86DM66D Android 11.0
+									43/50/55/65/75/86GM50D
+		port 8000
+		DP:    16 - DDFF0007C10800000116D9BBCC
+		VGA:   17 - DDFF0007C10800000117D8BBCC
+		HDMI1: 0E - DDFF0007C1080000010EC1BBCC
+		HDMI2: 0F - DDFF0007C1080000010FC0BBCC
+		PC:    OC - DDFF0007C1080000010CC3BBCC
+		DVI:   09 - DDFF0007C10800000109C6BBCC
+		Query TV status: AB AB 00 0C C1 28 00 00 xx zz zz zz zz zz zz yy CD CD 
+			zz: volume 
+			zz zz: 05 01 - PC, 05 02 - DVI, 05 03 - DP, 05 04 - HDMI2, 05 05 - HDMI1, 08 01 - VGA 
+	-- DM/GM50D Series ----------------------------------------
+		port 8000 HEX
+		Same as M-Series above
+		Query TV status: AB AB 00 0C C1 28 00 00 xx zz zz zz zz zz zz yy CD CD 
+			XX Volume (Take effect when power on)
+			XX XX Source (05 05 stands for HDMI1, 05 04 stands for HDMI2, 05 03 stands for DP, 08 01 stands for VGA. Take effect when power on.) 
+			XX Power Status (00 stands for power on, FF stands for power off.)
+			XX Mute Status (01 stands for Mute, 00 stands for Non-Mute. Take effect
+			when power on.)
+
+	--From API Reference – HIDB – V1.0 - contradicts other documentation
+		Platform Name Product Name  System Version
+		HisiV668      43\86BM66AE   Android 9.0
+
+		VGA: 0x0801
+		HDMI1:0x503
+		HDMI2:0x504
+		OPS  :0x505
+		AndroidSource:0xA02
+]]
+	local InputProtocols = { -- these will be put into InputTypes
+		BM = { -- this was tested on a live display.The responses are in a different order to the commands and do not match the protocol document.
+			["Menu"         ]={ Tx='\x00', Rx={ 					  '\x05\x03\x00' } },
+			["PC"           ]={ Tx='\x0C', Rx={ '\x05\x01', '\x05\x03\x01' } },
+			-- the 3 byte Rx is from an actual display, it does not match the documents
+			["Display Port" ]={ Tx='\x16', Rx={ '\x05\x03', '\x05\x03\x02' } },
+			["HDMI 1"       ]={ Tx='\x0E', Rx={ '\x05\x04', '\x05\x03\x03' } },
+			["HDMI 2"       ]={ Tx='\x0F', Rx={ '\x05\x05', '\x05\x03\x04' } },
+			["VGA"          ]={ Tx='\x17', Rx={ '\x05\x01', '\x06\x04\x00' } },
+			["DVI"          ]={ Tx='\x09', Rx={ '\x05\x02' } }, -- RX is a repeat of DP
+			["HDMI"         ]={ Tx='\x08' },
+		},
+		DM = {
+			["Menu"         ]={ Tx='\x05\x00' },
+			["PC"           ]={ Tx='\x05\x01', Rx={ '\x05\x00' } },
+			["DVI"          ]={ Tx='\x05\x02', Rx={ '\x05\x05' } },
+			["Display Port" ]={ Tx='\x05\x03', Rx={ '\x05\x01', '\x05\x03\x02' } },
+			["HDMI 1"       ]={ Tx='\x05\x05', Rx={ '\x05\x07', '\x05\x03\x03' } },
+			["HDMI 2"       ]={ Tx='\x05\x04', Rx={ '\x05\x06', '\x05\x03\x04' } },
+			["VGA"          ]={ Tx='\x08\x01', Rx={ '\x05\x06' } },
+			["Android"      ]={ Tx='\x0A\x02' },
+		},
+		M = { -- M-Series documeent
+			["Menu"         ]={ Tx='\x00', Rx={ '\x05\x03\x00' } },
+			["PC"           ]={ Tx='\x0C', Rx={ '\x05\x03\x01' } },
+			["Display Port" ]={ Tx='\x16', Rx={ '\x05\x03\x02' } },
+			["HDMI 1"       ]={ Tx='\x0E', Rx={ '\x05\x03\x04' } },
+			["HDMI 2"       ]={ Tx='\x0F', Rx={ '\x05\x03\x03' } },
+			["VGA"          ]={ Tx='\x17', Rx={ '\x06\x04\x00' } },
+			["DVI"          ]={ Tx='\x09', Rx={ '\x05\x03\x02' } }, -- RX is a repeat of DP
+			["HDMI"         ]={ Tx='\x08' },
+		},
+		E = {
+			["HDMI 2"       ]={ Tx='\x06' },
+			["OPS"          ]={ Tx='\x0B' },
+			["USB"          ]={ Tx='\x0C' },
+			["HDMI 1"       ]={ Tx='\x0D' },
+			["Home"         ]={ Tx='\x14' },
+			["CMS"          ]={ Tx='\x15' },
+			["Media"        ]={ Tx='\x16' },
+			["PDF"          ]={ Tx='\x17' },
+			["Custom"       ]={ Tx='\x18' },
+		},
+		WR = {-- WR6CE/WR6BE
+			["HDMI Front"   ]={ Tx='\x05', Rx={ '\x05\x05' } }, --HDMI 1
+			["HDMI Side"    ]={ Tx='\x06', Rx={ '\x05\x04' } }, --HDMi 2
+			["VGA"          ]={ Tx='\x07', Rx={ '\x08\x01' } },
+			["Display Port" ]={ Tx='\x0C', Rx={ '\x05\x03' } },
+			["Type-C"       ]={ Tx='\x0B', Rx={ '\x05\x09' } },
+			["OPS"          ]={ Tx='\x04' },
+			["DVI"          ]={            Rx={ '\x05\x02' } },
+			["PC"           ]={            Rx={ '\x05\x01' } },
+		},
+		MR = { -- MR6DE/MR6DE-E
+			["HDMI Front"   ]={ Tx='\x1A', Rx={ '\x17', '\x05\x08' } },
+			["HDMI1"        ]={ Tx='\x24', Rx={ '\x0E', '\x05\x06' } }, --Side HDMI1
+			["HDMI2"        ]={ Tx='\x25', Rx={ '\x0F', '\x05\x07' } }, --Side HDMI2
+			["PC"           ]={ Tx='\x0C', Rx={ '\x0C', '\x05\x01' } },
+			["Type-C"       ]={ Tx='\x1C', Rx={ '\x17', '\x05\x09' } },
+		}
+	}
+	InputProtocols['GM'] = InputProtocols.BM
+
+  ActiveInput = 1
+  for i=1,#Controls['InputButtons'] do
+  	if Controls['InputButtons'][i].Boolean then
+  		ActiveInput = i
+  	end
+  end
+
+  --InputCount = 0
+  --for i,_ in ipairs(InputTypes) do InputCount = i end 
+  local choices = {}
+  --for _,v in ipairs(InputTypes) do table.insert(choices, v.Name) end 
+  for i=1, InputCount do table.insert(choices, InputTypes[i].Name) end 
+	Controls["Input"].Choices = choices
+
+	local function mergeTablesByLength(originalTable, newTable) 
+    local result = {} -- Create a copy of the original table to avoid modifying the original
+    for i, v in ipairs(originalTable) do result[i] = v end
+    for _, newItem in ipairs(newTable) do -- For each item in newTable, replace any existing item with same length
+			local newLength, replaced= #newItem, false
+			for i, existingItem in ipairs(result) do -- Check if there's an existing item with the same length
+				if #existingItem == newLength then
+					result[i] = newItem  -- Replace the existing item
+					replaced = true
+					break
+				end
+			end
+			if not replaced then table.insert(result, newItem) end -- If no item with same length found, add to the end
+		end
+		return result
+	end
+
+	if InputProtocols[DisplaySeries] then
+		for name, protocol in pairs(InputProtocols[DisplaySeries]) do --["HDMI1"]={ Tx='\x24', Rx={ '\x0E', '\x05\x06' } }, --Side HDMI1
+			for _,input_details in ipairs(InputTypes) do
+				if name==input_details.Name then
+					if protocol.Tx then input_details.Tx = protocol.Tx end
+					if protocol.Rx then 
+						if input_details.Rx then
+								input_details.Rx = mergeTablesByLength(input_details.Rx, protocol.Rx)
+						else
+							input_details['Rx'] = protocol.Rx
+						end				
+					end
+				end
+			end
+		end
+	end
+
+  function GetInputIndex(val)
+    if DebugFunction then PrintByteString(val, 'GetInputIndex(): ') end
+    for i,input in ipairs(InputTypes) do
+      if(input.Tx == val)then
+        if DebugFunction then print('GetInputIndex('..i..') InputTypes: '..input.Name) end
+        return i, input.Name
+			elseif input.Rx and #input.Rx>0 then
+				for _,v in ipairs(input.Rx) do		
+					if(v == val)then
+        		if DebugFunction then print('GetInputIndex('..i..') InputTypes: '..input.Name) end
+        		return i, input.Name
+					end
+				end
+      end
+    end
+  end
+
   -- create a table of items that require querying on connect
-  local PropertiesToGet = { "Status", "InputStatus", "MACAddress", "SWVersion", "SerialNumber", "DeviceName", "ModelName", "ModelNumber" }
-  local StatusToGet = { "Status", "InputStatus" } -- , "VolumeStatus" } -- no VolumeStatus -- never send "PanelStatus", it causes the device to reboot and erase
+  local PropertiesToGet = { "Status", "InputStatus", "MACAddress", "SWVersion", "SerialNumber", "ModelName", "ModelNumber"}
+	if DisplaySeries ~= "GM" then  table.insert(PropertiesToGet, "DeviceName") end -- doesn't work on GM series
+  local StatusToGet = { "Status", "InputStatus" } -- , "VolumeStatus" } -- no VolumeStatus 
 
   -- create a queue of commands, these commands will be iteratively called after connection when the regular command queue is empty
   local PollQueueCurrent = {}
@@ -142,7 +327,8 @@
   	DataBuffer = ""
   	CommandQueue = {}
 		-- Add all the properties to the query queue whenever IP settings change. We clear this as they are populated in to reduce traffic
-		PropertiesToGet = { "Status", "InputStatus", "PanelStatus", "MACAddress", "SWVersion", "SerialNumber", "DeviceName", "ModelName", "ModelNumber" }
+		PropertiesToGet = { "Status", "InputStatus", "MACAddress", "SWVersion", "SerialNumber", "ModelName", "ModelNumber" }--, "PanelStatus", "DeviceName"
+		if DisplaySeries ~= "GM" then  table.insert(PropertiesToGet, "DeviceName") end -- doesn't work on GM series
   end
   
   --Reset any of the "Unavailable" data;  Will cause a momentary colision that will resolve itself the customer names the device "Unavailable"
@@ -165,7 +351,7 @@
   		end
   	end
   end
-  
+
   -- Interface will receive a lot of strings of hex bytes; Printing decimal values for easier debug
   function PrintByteString(ByteString, header, allHex)
   	--if DebugFunction then print("PrintByteString() Called") end
@@ -184,7 +370,7 @@
     end
   	print( result )
   end
-  
+
   -- Arrays of bytes may get used often; Printing decimal values for easier debug
   function PrintByteArray(ByteArray, header)
   	if DebugFunction then print("PrintByteArray() Called") end
@@ -196,12 +382,12 @@
   	end
   	print( result )
   end
-  
+
   -- Set the current input indicators
   function SetActiveInput(index)
   	if DebugFunction then print("SetActiveInputIndicator() Called") end
   	if(index)then
-  		Controls["Input"].String = AlternativeInputNames[index].Name
+  		Controls["Input"].String = InputTypes[index].Name
   		Controls["InputButtons"][ActiveInput].Value = false
   		Controls["InputStatus"][ActiveInput].Value = false
   		Controls["InputButtons"][index].Value = true
@@ -213,7 +399,7 @@
   		Controls["InputStatus"][ActiveInput].Value = false
   	end
   end
-  
+
   --Parse a string from byte array
   function ParseString(data)
   	if DebugFunction then print("ParseString() Called") end
@@ -223,13 +409,12 @@
   	end
   	return name
   end
-  
+
   --A debounce timer on power up avoids reporting the TCP reset that occurs as ane error
   function ClearDebounce()
   	PowerOnDebounce = false
   end
-  
-  
+
   ------ Communication Interfaces --------
   -- Shared interface functions
   function Init()
@@ -238,7 +423,7 @@
   	Disconnected()
    	Connect()
   end
-  
+
   function Connected()
   	if DebugFunction then print("Connected() Called") end
   	CommunicationTimer:Stop()
@@ -257,14 +442,14 @@
       SendNextCommand()
     end
   end
-  
+
   --Wrapper for setting the pwer level
   function SetPowerLevel(val)
   	--
   	if val==1 and Controls["PowerStatus"].Value~=val then
   		ClearUnavailableData()
   		PowerupTimer:Stop()
-  
+
   	--If the display is being shut off, clear the buffer of commands
   	--This prevents a hanging off command from immediately turn the display off on next power-on command
   	elseif(val == 0)then
@@ -272,7 +457,7 @@
   	end
   	Controls["PowerStatus"].Value = val
   end
-  
+
   --[[  Communication format
   	All commands are hex bytes of the format:
   			Header        Data-Length  Command          DeviceID  Data      Checksum ETX
@@ -287,7 +472,7 @@
   		Controls["PowerOn"].EventHandler() 
   		And a receive handler that passes data to ParseData()
   ]]
-  
+
   -- Take a request object and queue it for sending.  Object format is of:
   --  { Command=int, Data={int} }
   --  ints must be between 0 and 255 for hex translation
@@ -307,7 +492,7 @@
     for i=1, #value do checksum = checksum ~ value:byte(i) end
   	--if DebugTx then print("checksum: "..checksum) end
   	value = "\xDD\xFF\x00"..value..string.char(checksum).."\xBB\xCC"
-  
+
   	--Check for if a command is already queued
   	for i, val in ipairs(CommandQueue) do
   		if(val == value)then
@@ -326,17 +511,17 @@
   	table.insert(CommandQueue,value)
   	SendNextCommand()
   end
-  
-  local function GetBMSeriesString(ByteString)
+
+  local function GetBMSeriesString(ByteString) -- convert "\x00\x00" into "00 00"
     local result = ""
     for i=1,ByteString:len() do
       result = result..string.format("%02X ",ByteString:byte(i))
     end
-    result = result:gsub("%s+$", "")
+    result = result:gsub("%s+$", "") -- trim trailing whitespace
     result = result.."\x0d\x0a\x0a"
-    return result -- trim trailing whitespace
+    return result
   end
-  
+
   --Timeout functionality
   -- Close the current and start a new connection with the next command
   -- This was included due to behaviour within the Device Serial; may be redundant check on TCP mode
@@ -346,15 +531,15 @@
   	CommunicationTimer:Stop()
   	CommandProcessing = false
   	SendNextCommand()
-  end 
-  
+  end
+
   --  Serial mode Command function  --
   if ConnectionType == "Serial" then
   	print("Serial Mode Initializing...")
   	-- Create Serial Connection
   	Device = SerialPorts[1]
   	Baudrate, DataBits, Parity = 9600, 8, "N"
-  
+
   	--Send the display the next command off the top of the queue
   	function SendNextCommand()
   		if DebugFunction and not DebugTx then print("SendNextCommand() Called") end
@@ -363,7 +548,7 @@
   		elseif #CommandQueue > 0 then
   			CommandProcessing = true
         local command = table.remove(CommandQueue,1)
-        if DisplaySeries == "BM" then command = GetBMSeriesString(command) end
+        if DisplaySeries == "GM" or DisplaySeries == "BM" then command = GetBMSeriesString(command) end
   			if DebugTx then PrintByteString(command, "Sending["..DisplaySeries.."]: ") end
   			Device:Write( command )
   			CommunicationTimer:Start(CommandTimeout)
@@ -371,33 +556,33 @@
   			CommunicationTimer:Stop()
   		end
   	end
-  
+
   	function Disconnected()
   		if DebugFunction then print("Disconnected() Called") end
   		CommunicationTimer:Stop() 
   		CommandQueue = {}
   		Heartbeat:Stop()
   	end
-  
+
   	-- Clear old and open the socket, sending the next queued command
   	function Connect()
   		if DebugFunction then print("Connect() Called") end
   		Device:Close()
   		Device:Open(Baudrate, DataBits, Parity)
   	end
-  
+
   	-- Handle events from the serial port
   	Device.Connected = function(serialTable)
   		if DebugFunction then print("Connected handler called Called") end
   		ReportStatus("OK","")
   		Connected()
   	end
-  
+
   	Device.Reconnect = function(serialTable)
   		if DebugFunction then print("Reconnect handler called Called") end
   		Connected()
   	end
-  
+
   	Device.Data = function(serialTable, data)
   		ReportStatus("OK","")
   		CommunicationTimer:Stop() 
@@ -408,25 +593,25 @@
   		ParseResponse(msg)
   		SendNextCommand()
   	end
-  
+
   	Device.Closed = function(serialTable)
   		if DebugFunction then print("Closed handler called Called") end
   		Disconnected()
   		ReportStatus("MISSING","Connection closed")
   	end
-  
+
   	Device.Error = function(serialTable, error)
   		if DebugFunction then print("Socket Error handler called Called") end
   		Disconnected()
   		ReportStatus("MISSING",error)
   	end
-  
+
   	Device.Timeout = function(serialTable, error)
   		if DebugFunction then print("Socket Timeout handler called Called") end
   		Disconnected()
   		ReportStatus("MISSING","Serial Timeout")
   	end
-  
+
     function SetPowerOn()
   		if DebugFunction then print("PowerOn Serial Handler Called") end
   		PowerupTimer:Stop()
@@ -439,18 +624,18 @@
   	end
   	--Serial mode PowerOn handler uses the main api (see network power on below for more fun)
   	Controls["PowerOn"].EventHandler = SetPowerOn	
-  
+
   	Controls["PanelOn"].EventHandler = function()
   		if DebugFunction then print("PanelOn Serial Handler Called") end
   		Send( Request["PanelOn"] )
       SetPowerOn()
   	end
-  
+
   --  Ethernet Command Function  --DisplaySeries == "BM"
   else
   	print("TCP Mode Initializing...")
   	IPAddress = Controls.IPAddress
-  	if Controls.Port.String == '' then Controls.Port.String = 'BM' and '8000' or '8088' end
+  	if Controls.Port.String == '' then Controls.Port.String = 'GM' and '8000' or '8088' end
   	Port = Controls.Port
   	-- Create Sockets
   	Device = TcpSocket.New()
@@ -458,7 +643,7 @@
   	Device.ReadTimeout = 10  --Tested to verify 6 seconds necessary for input switches;  Appears some TV behave more slowly
   	Device.WriteTimeout = 10
   	udp = UdpSocket.New()
-  	
+
   	--Send the display the next command off the top of the queue
   	function SendNextCommand()
   		if DebugFunction and not DebugTx then print("SendNextCommand() Called") end
@@ -470,13 +655,13 @@
   			else
   				CommandProcessing = true
           local command = table.remove(CommandQueue,1)
-          if DisplaySeries == "BM" then command = GetBMSeriesString(command) end
+          if DisplaySeries == "GM" or DisplaySeries == "BM" then command = GetBMSeriesString(command) end
           if DebugTx then PrintByteString(command, "Sending["..DisplaySeries.."]: ") end
   				Device:Write( command )
   			end
   		end
   	end
-  
+
   	function Disconnected()
   		if DebugFunction then print("Disconnected() Called") end
   		if Device.IsConnected then
@@ -485,7 +670,7 @@
   		CommandQueue = {}
   		Heartbeat:Stop()
   	end
-  
+
   	-- Clear old and open the socket
   	function Connect()
   		if DebugFunction then print("Connect() Called") end
@@ -499,7 +684,7 @@
   			ReportStatus("MISSING","No IP Address or Port")
   		end
   	end
-  
+
   	-- Handle events from the socket;  Nearly identical to Serial
   	Device.EventHandler = function(sock, evt, err)
   		if DebugFunction then print("Ethernet Socket Handler Called "..evt) end
@@ -509,7 +694,7 @@
   		elseif evt == TcpSocket.Events.Reconnect then
         --if DebugFunction then print('Reconnect event - IsConnected: '..tostring(Device.IsConnected)) end
   			--Disconnected()
-  
+
   		elseif evt == TcpSocket.Events.Data then
   			ReportStatus("OK","")
   			CommandProcessing = false
@@ -530,15 +715,15 @@
         end
   			ParseResponse(msg)  
   			SendNextCommand()
-  			
+	
   		elseif evt == TcpSocket.Events.Closed then
   			Disconnected()
   			ReportStatus("MISSING","Socket closed")
-  
+
   		elseif evt == TcpSocket.Events.Error then
   			Disconnected()
   			ReportStatus("MISSING","Socket error")
-  
+
   		elseif evt == TcpSocket.Events.Timeout then
   			TimeoutCount = TimeoutCount + 1
         --print('TimeoutCount: '..TimeoutCount)
@@ -546,14 +731,14 @@
   				Disconnected()
   				ReportStatus("MISSING","Socket Timeout")
   			end
-  
+
   		else
   			Disconnected()
   			ReportStatus("MISSING",err)
-  
+
   		end
   	end
-  
+
   	--Ethernet specific event handlers
   	Controls["IPAddress"].EventHandler = function()
   		if DebugFunction then print("IP Address Event Handler Called") end
@@ -568,7 +753,7 @@
   		ClearVariables()
   		Init()
   	end
-  
+
   	-- Get the binary numerical value from a string IP address of the format "%d.%d.%d.%d"
   	-- Consider hardening inputs for this function
   	function IPV4ToValue(ipString)
@@ -580,22 +765,22 @@
   		end
   		return ipValue or nil
   	end
-  
+
   	-- Convert a 32bit number into an IPV4 string format
   	function ValueToIPV4(value)
   		return string.format("%d.%d.%d.%d", value >> 24, (value >> 16) & 0xFF, (value >> 8) & 0xFF, value & 0xFF)
   	end
-  
+
   	-- Compare IPAddresses as values (32bit integers)
   	function IPMaskCheck(ip1, ip2, mask)
   		return ip1 & mask == ip2 & mask
   	end
-  
+
   	-- Accept IPAddresses as strings
   	function IsIPInSubnet(ip1, ip2, mask)
   		return IPMaskCheck(IPV4ToValue(ip1), IPV4ToValue(ip2), IPV4ToValue(mask))
   	end
-  
+
     function SetPowerOn(ctl)
   		if DebugFunction then print("PowerOn Ethernet Handler Called") end
   		--MAC from device is sent as string text, needs translation
@@ -607,7 +792,7 @@
   			local broadcastRange = "255.255.255.255"
   			local deviceIpValue = IPV4ToValue(IPAddress.String)
   			local nics = Network.Interfaces()
-  
+
   			--WOL Packet is 6 full scale bytes then 16 repetitions of Device MAC
   			for i=1,6 do
   				mac = mac..string.char( tonumber( "0x"..macstr:sub((i*2)-1, i*2) ) );  
@@ -616,7 +801,7 @@
   			for i=1,16 do
   				WOLPacket = WOLPacket..mac
   			end
-  
+
   			-- Check Gateways and generate a broadcast range if it is found to be 0.0.0.0.  This might be better as a property (if user wanted local range for some reason)
   			for name,interface in pairs(nics) do
   				if interface.Gateway == "0.0.0.0" then
@@ -644,7 +829,7 @@
   			udp:Send( broadcastRange, 9, WOLPacket )
   			udp:Close()
   		end
-  
+
   		PowerupTimer:Stop()
   		Send( Request["PowerOn"], true )
   		--Also send the command in case of broadcast awake signal
@@ -653,23 +838,22 @@
   		PowerOnDebounce = true
   		Timer.CallAfter( ClearDebounce, PowerOnDebounceTime)
   	end
-  
+
   	-- PowerOn command on Ethernet requires a UDP broadcast wake-on-lan packet
   	-- The packet needs the MAC of the display to be formed - GetDisplayInfo must be run once to get the MAC first.
   	-- If Display is connected WiFi the poweron will not work
   	Controls.PowerOn.EventHandler = SetPowerOn
-  
+
   	Controls["PanelOn"].EventHandler = function()
   		if DebugFunction then print("PanelOn Ethernet Handler Called") end
   		Send( Request["PanelOn"])
       SetPowerOn()
   	end
-  
+
   end
-  
-  
+
   --  Device Request and Data handlers
-  
+
   --[[ Test the device once for
   	Model Number
   	Device Name
@@ -681,15 +865,15 @@
   function GetDeviceInfo()
   	if DebugFunction then print("GetDeviceInfo() Called") end
   	if Properties["Get Device Info"].Value then
-  		if(Controls["DeviceName"].String == "") then Send( Request["DeviceName"] )  end
   		if(Controls["MACAddress"].String == "") then Send( Request["MACAddress"] )  end
     	if(Controls["SerialNumber"].String == "") then Send( Request["SerialNumber"] )  end
   		if(Controls["DeviceFirmware"].String == "") then Send( Request["SWVersion"] ) end
   		if(Controls["ModelNumber"].String == "") then Send( Request["ModelNumber"] ) end
   		if(Controls["ModelName"].String == "") then Send( Request["ModelName"] )  end
+  		if(Controls["DeviceName"].String == "") then Send( Request["DeviceName"] )  end
   	end
   end
-  
+
   --[[  Response Data parser
   	
   	All response commands are hex bytes of the format
@@ -715,14 +899,13 @@
   
   	Recursively call if there is more data after the checksum. Stuff incomplete messages in the buffer
   ]]
-  
-  
+
   function ParseResponse(str)
     if DebugFunction and not DebugRx then PrintByteString(str, "ParseResponse() Called: ", true) end
     local _,msg = str:match("^%[(.-)%]:(.+)\x0d") -- BM series sending ASCII response
     if msg then
       if DebugFunction then print("ASCII RX ["..#msg.."]: "..msg) end
-  		if DisplaySeries == "Auto" then DisplaySeries = "BM" end
+  		if DisplaySeries == "Auto" then DisplaySeries = "GM" end
  		  if msg:match('232 time out') then
         print('ERROR received.')
        	DataBuffer = ""
@@ -733,7 +916,7 @@
       if DebugFunction then print("String RX ["..#str.."]: "..str) end
       if str:match('No Client Input,Please input command\x0a') then
         print('ASCII message received')
-        if DisplaySeries == "Auto" then DisplaySeries = "BM" end
+        if DisplaySeries == "Auto" then DisplaySeries = "GM" end
         DataBuffer = ""
       return end
       msg = str
@@ -746,7 +929,7 @@
   	elseif msg:len() < 12 then
       PrintByteString(msg, 'WARNING short response received: ')
   		DataBuffer = DataBuffer .. msg
-  
+
   	--Message doesn't start at begining.  Find the correct start then parse from there
   	--elseif msg:byte(1) ~= 0xAB or msg:byte(2) ~= 0xAB or msg:byte(3) ~= 0x00 then
   	elseif not msg:match('^\xAB\xAB\x00') then
@@ -759,12 +942,12 @@
         PrintByteString(msg, "ParseResponse["..i.."]: ")
   			ParseResponse( msg:sub(i,-1) )
   		end
-  	
+
   	--If the message length field is longer than the buffer, stuff back into the buffer and wait for a complete message
   	elseif msg:len() < msg:byte(3)+5 then
       PrintByteString(msg, "WARNING message length field is longer than the buffer: ")
   		DataBuffer = DataBuffer .. msg
-  
+
   	--Handle a good message
   	else
       DataBuffer = ''
@@ -783,7 +966,7 @@
   		ResponseObj['Data'      ]=msg:sub(10,ResponseObj['DataLength']+3) -- \xAA\xAA
   		ResponseObj['CheckSum'  ]=msg:byte(ResponseObj['DataLength']+4)
       ResponseObj['CheckSumTotal']=0
-    
+
       --if DebugFunction and DebugRx then PrintByteString(ResponseObj['Data'], "Data: ") end
   		--Read the data bytes into the data array
   		if ResponseObj['DataLength']>5 then
@@ -794,7 +977,7 @@
         end
   		end
       ResponseObj['Ack']=true
-  
+
   		--Checksum failures;  Don't handle
   		if ResponseObj['CheckSum'] ~= ResponseObj['CheckSumTotal'] then
   			if DebugRx then
@@ -804,7 +987,7 @@
   		--else HandleResponse(ResponseObj)
   		end
   		HandleResponse(ResponseObj)
-  
+
   		--Re-process any remaining data
       local remaining = msg:sub(7+ResponseObj['DataLength'],-1)
       --PrintByteString(remaining, "Re-process any remaining data: ")
@@ -812,13 +995,15 @@
   	end 
 		--[-[ if this is commented out it is to reduce polling, the displays lose commes if you send too much data.
     if #CommandQueue<1 then
-      if #PollQueueCurrent==0 then PollQueueCurrent = LoadPollQueue(StatusToGet) end
-      local item = table.remove(PollQueueCurrent)
-      Send( Request[item] )
-    end 
-		--]]
+      --if #PollQueueCurrent==0 then PollQueueCurrent = LoadPollQueue(StatusToGet) end
+			if #PollQueueCurrent>0 then
+				local item = table.remove(PollQueueCurrent)
+				Send( Request[item] )
+			end
+		end
+		--]-]
   end
-  
+
   -- Handler for good data from interface
   function HandleResponse(msg)
   	if DebugFunction then 
@@ -829,7 +1014,7 @@
       end
     --if DebugRx then PrintByteString(msg.Data, "Data: ") end
     end
-  
+
   	--Serial Number / DeviceName (both use the same .Command)
   	if msg["Command"]==Request.SerialNumber.Command then
       if Request.SerialNumber.Data2 == msg.Data2 then
@@ -845,7 +1030,7 @@
       else
         if DebugFunction then PrintByteString(msg['Data'], "Unhandled Device info response received: ") end
       end
-  
+
   	--Model Number / ModelName (both use the same .Command)
   	elseif msg["Command"]==Request.ModelName.Command then
       if Request.ModelName.Data2 == msg.Data2 then
@@ -860,23 +1045,23 @@
         else               Controls["ModelNumber"].String = "Unavailable" end
  				RemoveValuesByName(PropertiesToGet, "ModelNumber") -- no need to query this again unless IP settings change
       end
- 
+
   	--SW Version
   	elseif msg["Command"]==Request.SWVersion.Command then
       if DebugFunction then PrintByteString(msg['Data'], "Software version response received: ") end
   		if msg['Ack'] then Controls["DeviceFirmware"].String = string.format("%02d/%02d/%02d",msg["Data"]:byte(3),msg["Data"]:byte(2),msg["Data"]:byte(1))
   		else               Controls["DeviceFirmware"].String = "Unavailable" end
 			RemoveValuesByName(PropertiesToGet, "SWVersion") -- no need to query this again unless IP settings change
-  
+
   	--Input source Control response
   	elseif msg["Command"]==Request.InputStatus.Command then --or msg["Command"]==Request.InputSet.Command then
       if DebugFunction then PrintByteString(msg['Data'], "Input status response received: ") end
-      local input = GetInputIndex(msg["Data"])
-  
+      SetActiveInput( GetInputIndex(msg["Data"]) )
+
   	elseif msg["Command"]==Request.InputSet.Command then
       if DebugFunction then PrintByteString(msg['Data'], "Input response received: ") end
-      local input = GetInputIndex(msg["Data"])
-  
+      SetActiveInput( GetInputIndex(msg["Data"]) )
+
   	--MAC Address
   	elseif msg["Command"]==Request.MACAddress.Command then
   		if msg['Ack'] then
@@ -892,7 +1077,7 @@
 					-- Catch NACK responses that aren't handled
   	elseif not msg["Ack"] then
   		print("Nack response received for command "..msg["Command"])
-  
+
   	--Handle Status command
   	elseif msg["Command"]==Request.Status.Command then
       if DebugFunction then PrintByteString(msg['Data'], "Status response received: ") end
@@ -905,29 +1090,29 @@
         SetPowerLevel(0) print('PowerOff Rx')
       end
   		Controls["Mute"].Value = msg["Data"]:byte(5)
-  
+
   	--Power Status
   	elseif msg["Command"]==Request.PowerOff.Command then
       if DebugFunction then PrintByteString(msg['Data'], "Power response received: ") end
   		SetPowerLevel( msg["Data"]:byte(1) )
-  
+
   	--Panel Status
   	elseif msg["Command"]==Request.PanelOn.Command or msg["Command"]==Request.PanelStatus.Command then
       if DebugFunction then PrintByteString(msg['Data'], "Panel response received: ") end
   		Controls["PanelStatus"].Boolean = (msg["Data"] == Request["PanelOn"].Data)
   		Controls["PanelOn"].Boolean  = (msg["Data"] == Request["PanelOn" ].Data)
   		Controls["PanelOff"].Boolean = (msg["Data"] == Request["PanelOff"].Data)
-  
+
   	--Mute Status
   	elseif msg["Command"]==Request.MuteOn.Command then
       if DebugFunction then PrintByteString(msg['Data'], "Mute response received: ") end
   		Controls["Mute"].Value = msg["Data"]:byte(1)
-  
+
   	--Volume Status
   	elseif msg["Command"]==Request.VolumeStatus.Command or msg["Command"]==Request.VolumeSet.Command then
       if DebugFunction then PrintByteString(msg['Data'], "Volume response received: ", true) end
   		Controls["Volume"].Value = msg["Data"]:byte(1)
-  
+
   	--Handle Anything else by printing the unexpected command (debug?)
   	else
   		if DebugRx then 
@@ -938,16 +1123,16 @@
   		end
   	end
   end
-  
+
   --[[    Input Handler functions      ]]
-  
+
   -- Re-Initiate communication when the user changes the IP address or Port or ID being queried
   Controls["DisplayID"].EventHandler = function()
   	if DebugFunction then print("Port Event Handler Called") end
   	ClearVariables()
   	Init()
   end
-  
+
   function SetPowerOff()
   	if DebugFunction then print("PowerOff Handler Called") end
   	-- Stop the power on sequence if the user presses power off
@@ -956,47 +1141,44 @@
   	Controls["PowerStatus"].Value = 0
   	Send( Request["PowerOff"], true )
   end
-  
+
   --Controls Handlers
   -- Power controls
   Controls["PowerOff"].EventHandler = SetPowerOff
-  
+
   -- Panel controls
   Controls["PanelOff"].EventHandler = function()
   	if DebugFunction then print("PanelOff Handler Called") end
   	Controls["PanelStatus"].Boolean = false
   	Send( Request["PanelOff"])
-    if DisplaySeries == "BM" then
+    if DisplaySeries == "GM" or DisplaySeries == "BM" then
       SetPowerOff()
     end
   end
-  
+
   -- Input controls
   for i=1,#Controls['InputButtons'] do
-    --if AlternativeInputNames[i] and AlternativeInputNames[i].Name then 
-    --  Controls['InputButtons'][i].Legend = AlternativeInputNames[i].Name
-    --end
   	Controls['InputButtons'][i].EventHandler = function(ctl)
-  		if DebugFunction then print("Input["..(AlternativeInputNames[i].Name or i).."] button "..tostring(ctl.Boolean)) end
+  		if DebugFunction then print("Input["..(InputTypes[i].Name or i).."] button "..tostring(ctl.Boolean)) end
   		if ctl.Boolean then
-  			Request["InputSet"]["Data"] = AlternativeInputNames[i].Value
+  			Request["InputSet"]["Data"] = InputTypes[i].Tx
   			Send( Request["InputSet"] )
   		end
   	end
-  end 
+  end
 
 	Controls["Input"].EventHandler = function(ctl)
 		if DebugFunction then print("Input["..ctl.String.."] Choice") end
-    for i,v in ipairs(AlternativeInputNames) do
+    for i,v in ipairs(InputTypes) do
       if v.Name == ctl.String then
-        Request["InputSet"]["Data"] = v.Value
+        Request["InputSet"]["Data"] = v.Tx
         Send( Request["InputSet"] )
         return
       end
     end
     ctl.String = "" -- invalid choice, default to unknown and let the next poll update the value correctly
 	end
-  
+
   -- Sound Controls
   Controls["Mute"].EventHandler = function(ctrl)
   	if DebugFunction then print("Mute Handler Called") end
@@ -1006,7 +1188,7 @@
   		Send( Request["MuteOff"] )
   	end
   end
-  
+
   function VolumRampTimerExpired()
   	if DebugFunction then print("VolumRampTimerExpired Handler Called "..string.format('\\x%02X', math.floor(Controls["Volume"].Value))) end
   	if Controls["VolumeUp"].Boolean then 
@@ -1020,7 +1202,7 @@
   	Send( Request["VolumeSet"] )
   end
   VolumRampTimer.EventHandler = VolumRampTimerExpired
-  
+
   Controls["VolumeUp"].EventHandler = function(ctl)
   	if DebugFunction then print("VolumeUp Handler Called "..tostring(ctl.Boolean)) end
     if ctl.Boolean then	
@@ -1047,19 +1229,19 @@
       if VolumRampTimer:IsRunning() then VolumRampTimer:Stop() end
     end
   end
-  
+
   VolumeDebounce.EventHandler = function()
   	if DebugFunction then print("VolumeDebounce Handler Called "..string.format('\\x%02X', math.floor(Controls["Volume"].Value))) end
   	Request["VolumeSet"]["Data"] = string.char(math.floor(Controls["Volume"].Value)) -- convert 100 to '\x64' 
   	Send( Request["VolumeSet"] )
   	VolumeDebounce:Stop()
   end
-  
+
   Controls["Volume"].EventHandler = function(ctrl)
   	if DebugFunction then print("Volume Handler Called") end
   	VolumeDebounce:Start(.500)
   end
-  
+
   -- Timer EventHandlers  --
   Heartbeat.EventHandler = function()
   	if DebugFunction and not DebugTx then print("Heartbeat Event Handler Called") end
@@ -1070,9 +1252,8 @@
   	  --Send( Request["VolumeStatus"] )
   		--GetDeviceInfo()
   	end
-  end 
-  
-  
+  end
+
   -- PowerOn command requires spamming the interface 3 times at 2 second intervals
   PowerupTimer.EventHandler = function()
   	if Controls["PowerStatus"].Value == 1 then
@@ -1085,7 +1266,7 @@
   		end
   	end
   end
-  
+
   -- Kick it off
   SetupDebugPrint()
   if not StartupTimer:IsRunning() then
