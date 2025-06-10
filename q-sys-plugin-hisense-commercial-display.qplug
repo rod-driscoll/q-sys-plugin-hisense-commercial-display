@@ -10,22 +10,24 @@
   https://www.hisense-b2b.com/Attachment/DownloadFile?downloadId=5
 
   Developer notes:
-  ~ tested on a 100BM66D (BM Series) with firmware dated 01/02/24 (dd/mm/yy):
-  ~ tested on a 55GM50D (GM Series)
+  ~ tested on a 100BM66D (BM Series) with firmware dated 07/08/24 and a 55DM66D (BM Series) with firmware dated 09/08/24
     ~ tested with LAN control only, serial control not tested; the documentation suggests it uses the same protocol.
     ~ 33 seconds from WoL to TCP socket connected
     ~ 10 seconds from connected to remote disconnect, so if polling > 10 secs it never requests status
     ~ Power, panel, source and volume control tested
     ~ Source select commands and responses don't align with documentation so will probably differ for each model
   ~ Checksum and length bytes returned from the display are not always correct
+  ~ The displays do not have a menu option that shows the display model.
+  ~ DM series display tested was ordered as a GM series but reports as a DM series, cannot access the model name on the device to confirm.
   ~ BM and DM series use the same base protocol with the TCP port and the byte format differing as follows:
     ~ BM series uses port 8088 and a full hex byte protocol   (e.g. 'PowerOff' = '\xDD\xFF\x00\x08\xC1\x15\x00\x00\x01\xAA\xAA\xDD\xBB\xCC
     ~ DM series uses port 8000 and a full ascii byte protocol (e.g. 'PowerOff' = 'DD FF 00 08 C1 15 00 00 01 AA AA DD BB CC'
-  ~ DM series successfully queried device info such as MacAddress and other details
+  ~ Successfully queried device info such as MacAddress and other details
   ~ BM series does not recognise device info queries.
   ~ Volume ramping is not smooth because the display doesn't respond promptly and the plugin waits for a response before sending the next command
-  ~ Never request PanelStatus, it causes the device to reboot and erase
+  ~ The documented PanelStatus command is actually device reset command which causes the device to reboot and erase
   ~ Displays disconnect and refuse to reconnect if polled too often, so only polling for device info when IP settings are changed.
+  ~ Input and input query feedback does not match the documentation for either model and is different for every model.
   ~ serial not tested, baud documented as 115200n81
 
   Used Hisense Commercial Display plugin as a template.
@@ -686,13 +688,13 @@ if Controls then
   			["HDMI"         ]={ Tx='\x08' },
   		},
   		DM = {
-  			["Menu"         ]={ Tx='\x05\x00' },
-  			["PC"           ]={ Tx='\x05\x01', Rx={ '\x05\x00' } },
-  			["DVI"          ]={ Tx='\x05\x02', Rx={ '\x05\x05' } },
-  			["Display Port" ]={ Tx='\x05\x03', Rx={ '\x05\x01', '\x05\x03\x02' } },
-  			["HDMI 1"       ]={ Tx='\x05\x05', Rx={ '\x05\x07', '\x05\x03\x03' } },
-  			["HDMI 2"       ]={ Tx='\x05\x04', Rx={ '\x05\x06', '\x05\x03\x04' } },
-  			["VGA"          ]={ Tx='\x08\x01', Rx={ '\x05\x06' } },
+  			["Menu"         ]={ Tx='\x05\x00', Rx={ '\x00', '\x05\x00' } },
+  			["PC"           ]={ Tx='\x05\x01' },
+  			["DVI"          ]={ Tx='\x05\x02', Rx={         '\x05\x05' } },
+  			["Display Port" ]={ Tx='\x05\x03', Rx={ '\x01', '\x05\x01', '\x05\x03\x02' } },
+  			["HDMI 1"       ]={ Tx='\x05\x05', Rx={ '\x05', '\x05\x06', '\x05\x03\x03' } },
+  			["HDMI 2"       ]={ Tx='\x05\x04', Rx={ '\x04', '\x05\x07', '\x05\x03\x04' } },
+  			["VGA"          ]={ Tx='\x08\x01', Rx={ '\x06', '\x05\x06' } },
   			["Android"      ]={ Tx='\x0A\x02' },
   		},
   		M = { -- M-Series documeent
@@ -787,16 +789,16 @@ if Controls then
     function GetInputIndex(val)
       if DebugFunction then PrintByteString(val, 'GetInputIndex(): ') end
       for i,input in ipairs(InputTypes) do
-        if(input.Tx == val)then
-          if DebugFunction then print('GetInputIndex('..i..') InputTypes: '..input.Name) end
-          return i, input.Name
-  			elseif input.Rx and #input.Rx>0 then
+  			if input.Rx and #input.Rx>0 then
   				for _,v in ipairs(input.Rx) do		
   					if(v == val)then
           		if DebugFunction then print('GetInputIndex('..i..') InputTypes: '..input.Name) end
           		return i, input.Name
   					end
   				end
+  			elseif(input.Tx == val)then
+          if DebugFunction then print('GetInputIndex('..i..') InputTypes: '..input.Name) end
+          return i, input.Name
         end
       end
     end
@@ -999,7 +1001,7 @@ if Controls then
     function Send(cmd, sendImmediately)
       if DebugFunction then 
         for k,v in pairs(Request) do
-          if v.Command == cmd.Command then
+          if v.Command == cmd.Command and v.Data == cmd.Data then
             print(string.format("Send[\\x%02X](%s, %s) Called", cmd.Command, k, sendImmediately))
           break end
         end

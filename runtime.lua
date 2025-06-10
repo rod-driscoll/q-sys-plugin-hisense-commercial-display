@@ -167,13 +167,13 @@
 			["HDMI"         ]={ Tx='\x08' },
 		},
 		DM = {
-			["Menu"         ]={ Tx='\x05\x00' },
-			["PC"           ]={ Tx='\x05\x01', Rx={ '\x05\x00' } },
-			["DVI"          ]={ Tx='\x05\x02', Rx={ '\x05\x05' } },
-			["Display Port" ]={ Tx='\x05\x03', Rx={ '\x05\x01', '\x05\x03\x02' } },
-			["HDMI 1"       ]={ Tx='\x05\x05', Rx={ '\x05\x07', '\x05\x03\x03' } },
-			["HDMI 2"       ]={ Tx='\x05\x04', Rx={ '\x05\x06', '\x05\x03\x04' } },
-			["VGA"          ]={ Tx='\x08\x01', Rx={ '\x05\x06' } },
+			["Menu"         ]={ Tx='\x05\x00', Rx={ '\x00', '\x05\x00' } },
+			["PC"           ]={ Tx='\x05\x01' },
+			["DVI"          ]={ Tx='\x05\x02', Rx={         '\x05\x05' } },
+			["Display Port" ]={ Tx='\x05\x03', Rx={ '\x01', '\x05\x01', '\x05\x03\x02' } },
+			["HDMI 1"       ]={ Tx='\x05\x05', Rx={ '\x05', '\x05\x06', '\x05\x03\x03' } },
+			["HDMI 2"       ]={ Tx='\x05\x04', Rx={ '\x04', '\x05\x07', '\x05\x03\x04' } },
+			["VGA"          ]={ Tx='\x08\x01', Rx={ '\x06', '\x05\x06' } },
 			["Android"      ]={ Tx='\x0A\x02' },
 		},
 		M = { -- M-Series documeent
@@ -268,16 +268,16 @@
   function GetInputIndex(val)
     if DebugFunction then PrintByteString(val, 'GetInputIndex(): ') end
     for i,input in ipairs(InputTypes) do
-      if(input.Tx == val)then
-        if DebugFunction then print('GetInputIndex('..i..') InputTypes: '..input.Name) end
-        return i, input.Name
-			elseif input.Rx and #input.Rx>0 then
+			if input.Rx and #input.Rx>0 then
 				for _,v in ipairs(input.Rx) do		
 					if(v == val)then
         		if DebugFunction then print('GetInputIndex('..i..') InputTypes: '..input.Name) end
         		return i, input.Name
 					end
 				end
+			elseif(input.Tx == val)then
+        if DebugFunction then print('GetInputIndex('..i..') InputTypes: '..input.Name) end
+        return i, input.Name
       end
     end
   end
@@ -480,7 +480,7 @@
   function Send(cmd, sendImmediately)
     if DebugFunction then 
       for k,v in pairs(Request) do
-        if v.Command == cmd.Command then
+        if v.Command == cmd.Command and v.Data == cmd.Data then
           print(string.format("Send[\\x%02X](%s, %s) Called", cmd.Command, k, sendImmediately))
         break end
       end
