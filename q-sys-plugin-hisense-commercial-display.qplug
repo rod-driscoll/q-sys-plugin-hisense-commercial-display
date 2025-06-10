@@ -36,12 +36,15 @@
   ~ Changed input mapping, the documented protocols are moslty incorrect.
     ~ Documented BM series input commands correct but responses are incorrect
     ~ Documented DM series input commands and responses are incorrect
+  
+  20250610 v1.0.2 Rod Driscoll<rod@theavitgroup.com.au>
+    ~ Removed Panel controls, they are not supported by the BM/DM series displays.
 ]]
 
 PluginInfo = {
   Name = "Hisense~BM/DM Series Display v1.0",
-  Version = "1.0.1",
-  BuildVersion = "1.0.1",
+  Version = "1.0.2",
+  BuildVersion = "1.0.2",
   Id = "Hisense BM/DM Series Display v1.0",
   Author = "Rod Driscoll<rod@theavitgroup.com.au>",
   Description = "Control and Status for Hisense BM/DM Series Displays.",
@@ -297,7 +300,7 @@ function GetControls(props)
     PinStyle     = "Input"
   })
   
-  -- Panel Controls --
+  --[[ Panel Controls --
   table.insert(ctrls, {
     Name          = "PanelStatus",
     ControlType   = "Indicator",
@@ -331,7 +334,7 @@ function GetControls(props)
     UserPin      = true,
     PinStyle     = "Input"
   })
-  
+  ]]
   -- Input Controls --
   table.insert(ctrls, {
     Name         = "Input",
@@ -479,15 +482,17 @@ function GetControlLayout(props)
     layout["PowerOff"] = {PrettyName="Power~Off", Style="Button", Color=colors.Button, FontColor=colors.Red, FontSize=14, CornerRadius=2, Position={234,53}, Size={65,25} }
     --table.insert(graphics,{Type="Text",Text="Status",Position={12,40},Size={71,14},FontSize=12,HTextAlign="Center",Color=colors.Text})
     layout["PowerStatus"] = {PrettyName="Power~Status", Style="LED", Color=colors.Blue, OffColor=colors.DarkRed, UnlinkOffColor=true, CornerRadius=6, Position={147,55}, Size={20,20} }
-    --Panel
+    -- Panel
     table.insert(graphics,{Type="Header",Text="Panel",Position={15,90},Size={285,14},FontSize=12,HTextAlign="Center",Color=colors.Header})
+    --[[
     table.insert(graphics,{Type="Text",Text="On",Position={12,105},Size={71,14},FontSize=12,HTextAlign="Center",Color=colors.Text})
     layout["PanelOn"] = {PrettyName="Panel~On", Style="Button", Color=colors.Button, FontColor=colors.Hreen, FontSize=14, CornerRadius=2, Position={15,118}, Size={65,25} }
     table.insert(graphics,{Type="Text",Text="Off",Position={231,105},Size={71,14},FontSize=12,HTextAlign="Center",Color=colors.Text})
     layout["PanelOff"] = {PrettyName="Panel~Off", Style="Button", Color=colors.Button, FontColor=colors.Red, FontSize=14, CornerRadius=2, Position={234,118}, Size={65,25} }
     --table.insert(graphics,{Type="Text",Text="Status",Position={12,105},Size={71,14},FontSize=12,HTextAlign="Center",Color=colors.Text})
     layout["PanelStatus"] = {PrettyName="Panel~Status", Style="LED", Color=colors.Blue, OffColor=colors.DarkRed, UnlinkOffColor=true, CornerRadius=6, Position={147,120}, Size={20,20} }
-    -- Inputs
+  ]]
+  -- Inputs
     table.insert(graphics,{Type="Header",Text="Input",Position={15,155},Size={285,14},FontSize=12,HTextAlign="Center",Color=colors.Header})
     table.insert(graphics,{Type="Text",Text="Current Input",Position={12,174},Size={75,20},FontSize=12,HTextAlign="Right", VTextAlign="Middle", Color=colors.Text})
     layout["Input"] = {PrettyName="Input~Current Input", Style="ComboBox", FontColor=colors.Black, FontSize=14, Position={88,174} , Size={211,20} }
@@ -868,7 +873,7 @@ if Controls then
     		--Show the power off state if we can't communicate
     		if(state ~= "OK")then
     			Controls["PowerStatus"].Value = 0
-    			Controls["PanelStatus"].Boolean = false
+    			if Controls["PanelStatus"] then Controls["PanelStatus"].Boolean = false end
     		end
     	end
     end
@@ -1146,12 +1151,13 @@ if Controls then
     	--Serial mode PowerOn handler uses the main api (see network power on below for more fun)
     	Controls["PowerOn"].EventHandler = SetPowerOn	
   
-    	Controls["PanelOn"].EventHandler = function()
-    		if DebugFunction then print("PanelOn Serial Handler Called") end
-    		Send( Request["PanelOn"] )
-        SetPowerOn()
-    	end
-  
+  		if Controls["PanelOn"] then
+  			Controls["PanelOn"].EventHandler = function()
+  				if DebugFunction then print("PanelOn Serial Handler Called") end
+  				Send( Request["PanelOn"] )
+  				SetPowerOn()
+  			end
+  		end
     --  Ethernet Command Function  --DisplaySeries == "BM"
     else
     	print("TCP Mode Initializing...")
@@ -1365,12 +1371,13 @@ if Controls then
     	-- If Display is connected WiFi the poweron will not work
     	Controls.PowerOn.EventHandler = SetPowerOn
   
-    	Controls["PanelOn"].EventHandler = function()
-    		if DebugFunction then print("PanelOn Ethernet Handler Called") end
-    		Send( Request["PanelOn"])
-        SetPowerOn()
-    	end
-  
+  		if Controls["PanelOn"] then
+  			Controls["PanelOn"].EventHandler = function()
+  				if DebugFunction then print("PanelOn Ethernet Handler Called") end
+  				Send( Request["PanelOn"])
+  				SetPowerOn()
+  			end
+  		end
     end
   
     --  Device Request and Data handlers
@@ -1620,9 +1627,9 @@ if Controls then
     	--Panel Status
     	elseif msg["Command"]==Request.PanelOn.Command or msg["Command"]==Request.PanelStatus.Command then
         if DebugFunction then PrintByteString(msg['Data'], "Panel response received: ") end
-    		Controls["PanelStatus"].Boolean = (msg["Data"] == Request["PanelOn"].Data)
-    		Controls["PanelOn"].Boolean  = (msg["Data"] == Request["PanelOn" ].Data)
-    		Controls["PanelOff"].Boolean = (msg["Data"] == Request["PanelOff"].Data)
+    		if Controls["PanelStatus"] then Controls["PanelStatus"].Boolean = (msg["Data"] == Request["PanelOn" ].Data) end
+    		if Controls["PanelOn"    ] then Controls["PanelOn"    ].Boolean = (msg["Data"] == Request["PanelOn" ].Data) end
+    		if Controls["PanelOff"   ] then Controls["PanelOff"   ].Boolean = (msg["Data"] == Request["PanelOff"].Data) end
   
     	--Mute Status
     	elseif msg["Command"]==Request.MuteOn.Command then
@@ -1668,14 +1675,27 @@ if Controls then
     Controls["PowerOff"].EventHandler = SetPowerOff
   
     -- Panel controls
-    Controls["PanelOff"].EventHandler = function()
-    	if DebugFunction then print("PanelOff Handler Called") end
-    	Controls["PanelStatus"].Boolean = false
-    	Send( Request["PanelOff"])
-      if DisplaySeries == "GM" or DisplaySeries == "BM" then
-        SetPowerOff()
-      end
-    end
+  	if Controls["PanelOn"] then
+  		Controls["PanelOn"].EventHandler = function()
+  			if DebugFunction then print("PanelOn Handler Called") end
+  			Controls["PanelStatus"].Boolean = true
+  			Send( Request["PanelOn"] )
+  			if DisplaySeries == "GM" or DisplaySeries == "BM" then
+  				SetPowerOn()
+  			end
+  		end
+  	end
+  
+  	if Controls["PanelOff"] then
+  		Controls["PanelOff"].EventHandler = function()
+  			if DebugFunction then print("PanelOff Handler Called") end
+  			Controls["PanelStatus"].Boolean = false
+  			Send( Request["PanelOff"])
+  			if DisplaySeries == "GM" or DisplaySeries == "BM" then
+  				SetPowerOff()
+  			end
+  		end
+  	end
   
     -- Input controls
     for i=1,#Controls['InputButtons'] do
@@ -1768,7 +1788,7 @@ if Controls then
     	if DebugFunction and not DebugTx then print("Heartbeat Event Handler Called") end
     	Send( Request["Status"] )
     	if Controls["PowerStatus"].Value==1 then
-    		--Send( Request["PanelStatus"] ) -- this causes the device to reboot and erase
+    		--Send( Request["PanelStatus"] ) -- this is the same command as device erase
     		Send( Request["InputStatus"] )
     	  --Send( Request["VolumeStatus"] )
     		--GetDeviceInfo()

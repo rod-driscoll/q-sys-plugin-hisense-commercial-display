@@ -36,12 +36,15 @@
   ~ Changed input mapping, the documented protocols are moslty incorrect.
     ~ Documented BM series input commands correct but responses are incorrect
     ~ Documented DM series input commands and responses are incorrect
+  
+  20250610 v1.0.2 Rod Driscoll<rod@theavitgroup.com.au>
+    ~ Removed Panel controls, they are not supported by the BM/DM series displays.
 ]]
 
 PluginInfo = {
   Name = "Hisense~BM/DM Series Display v1.0",
-  Version = "1.0.1",
-  BuildVersion = "1.0.1",
+  Version = "1.0.2",
+  BuildVersion = "1.0.2",
   Id = "Hisense BM/DM Series Display v1.0",
   Author = "Rod Driscoll<rod@theavitgroup.com.au>",
   Description = "Control and Status for Hisense BM/DM Series Displays.",

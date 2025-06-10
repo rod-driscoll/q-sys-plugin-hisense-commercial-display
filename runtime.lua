@@ -347,7 +347,7 @@
   		--Show the power off state if we can't communicate
   		if(state ~= "OK")then
   			Controls["PowerStatus"].Value = 0
-  			Controls["PanelStatus"].Boolean = false
+  			if Controls["PanelStatus"] then Controls["PanelStatus"].Boolean = false end
   		end
   	end
   end
@@ -625,12 +625,13 @@
   	--Serial mode PowerOn handler uses the main api (see network power on below for more fun)
   	Controls["PowerOn"].EventHandler = SetPowerOn	
 
-  	Controls["PanelOn"].EventHandler = function()
-  		if DebugFunction then print("PanelOn Serial Handler Called") end
-  		Send( Request["PanelOn"] )
-      SetPowerOn()
-  	end
-
+		if Controls["PanelOn"] then
+			Controls["PanelOn"].EventHandler = function()
+				if DebugFunction then print("PanelOn Serial Handler Called") end
+				Send( Request["PanelOn"] )
+				SetPowerOn()
+			end
+		end
   --  Ethernet Command Function  --DisplaySeries == "BM"
   else
   	print("TCP Mode Initializing...")
@@ -844,12 +845,13 @@
   	-- If Display is connected WiFi the poweron will not work
   	Controls.PowerOn.EventHandler = SetPowerOn
 
-  	Controls["PanelOn"].EventHandler = function()
-  		if DebugFunction then print("PanelOn Ethernet Handler Called") end
-  		Send( Request["PanelOn"])
-      SetPowerOn()
-  	end
-
+		if Controls["PanelOn"] then
+			Controls["PanelOn"].EventHandler = function()
+				if DebugFunction then print("PanelOn Ethernet Handler Called") end
+				Send( Request["PanelOn"])
+				SetPowerOn()
+			end
+		end
   end
 
   --  Device Request and Data handlers
@@ -1099,9 +1101,9 @@
   	--Panel Status
   	elseif msg["Command"]==Request.PanelOn.Command or msg["Command"]==Request.PanelStatus.Command then
       if DebugFunction then PrintByteString(msg['Data'], "Panel response received: ") end
-  		Controls["PanelStatus"].Boolean = (msg["Data"] == Request["PanelOn"].Data)
-  		Controls["PanelOn"].Boolean  = (msg["Data"] == Request["PanelOn" ].Data)
-  		Controls["PanelOff"].Boolean = (msg["Data"] == Request["PanelOff"].Data)
+  		if Controls["PanelStatus"] then Controls["PanelStatus"].Boolean = (msg["Data"] == Request["PanelOn" ].Data) end
+  		if Controls["PanelOn"    ] then Controls["PanelOn"    ].Boolean = (msg["Data"] == Request["PanelOn" ].Data) end
+  		if Controls["PanelOff"   ] then Controls["PanelOff"   ].Boolean = (msg["Data"] == Request["PanelOff"].Data) end
 
   	--Mute Status
   	elseif msg["Command"]==Request.MuteOn.Command then
@@ -1147,14 +1149,27 @@
   Controls["PowerOff"].EventHandler = SetPowerOff
 
   -- Panel controls
-  Controls["PanelOff"].EventHandler = function()
-  	if DebugFunction then print("PanelOff Handler Called") end
-  	Controls["PanelStatus"].Boolean = false
-  	Send( Request["PanelOff"])
-    if DisplaySeries == "GM" or DisplaySeries == "BM" then
-      SetPowerOff()
-    end
-  end
+	if Controls["PanelOn"] then
+		Controls["PanelOn"].EventHandler = function()
+			if DebugFunction then print("PanelOn Handler Called") end
+			Controls["PanelStatus"].Boolean = true
+			Send( Request["PanelOn"] )
+			if DisplaySeries == "GM" or DisplaySeries == "BM" then
+				SetPowerOn()
+			end
+		end
+	end
+
+	if Controls["PanelOff"] then
+		Controls["PanelOff"].EventHandler = function()
+			if DebugFunction then print("PanelOff Handler Called") end
+			Controls["PanelStatus"].Boolean = false
+			Send( Request["PanelOff"])
+			if DisplaySeries == "GM" or DisplaySeries == "BM" then
+				SetPowerOff()
+			end
+		end
+	end
 
   -- Input controls
   for i=1,#Controls['InputButtons'] do
@@ -1247,7 +1262,7 @@
   	if DebugFunction and not DebugTx then print("Heartbeat Event Handler Called") end
   	Send( Request["Status"] )
   	if Controls["PowerStatus"].Value==1 then
-  		--Send( Request["PanelStatus"] ) -- this causes the device to reboot and erase
+  		--Send( Request["PanelStatus"] ) -- this is the same command as device erase
   		Send( Request["InputStatus"] )
   	  --Send( Request["VolumeStatus"] )
   		--GetDeviceInfo()

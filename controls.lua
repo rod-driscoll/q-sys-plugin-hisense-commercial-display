@@ -157,7 +157,7 @@ table.insert(ctrls, {
   PinStyle     = "Input"
 })
 
--- Panel Controls --
+--[[ Panel Controls --
 table.insert(ctrls, {
   Name          = "PanelStatus",
   ControlType   = "Indicator",
@@ -191,7 +191,7 @@ table.insert(ctrls, {
   UserPin      = true,
   PinStyle     = "Input"
 })
-
+]]
 -- Input Controls --
 table.insert(ctrls, {
   Name         = "Input",
