@@ -63,14 +63,12 @@ elseif CurrentPage == "Control" then
   layout["PowerStatus"] = {PrettyName="Power~Status", Style="LED", Color=colors.Blue, OffColor=colors.DarkRed, UnlinkOffColor=true, CornerRadius=6, Position={147,55}, Size={20,20} }
   -- Panel
   table.insert(graphics,{Type="Header",Text="Panel",Position={15,90},Size={285,14},FontSize=12,HTextAlign="Center",Color=colors.Header})
-  --[[
   table.insert(graphics,{Type="Text",Text="On",Position={12,105},Size={71,14},FontSize=12,HTextAlign="Center",Color=colors.Text})
   layout["PanelOn"] = {PrettyName="Panel~On", Style="Button", Color=colors.Button, FontColor=colors.Hreen, FontSize=14, CornerRadius=2, Position={15,118}, Size={65,25} }
   table.insert(graphics,{Type="Text",Text="Off",Position={231,105},Size={71,14},FontSize=12,HTextAlign="Center",Color=colors.Text})
   layout["PanelOff"] = {PrettyName="Panel~Off", Style="Button", Color=colors.Button, FontColor=colors.Red, FontSize=14, CornerRadius=2, Position={234,118}, Size={65,25} }
   --table.insert(graphics,{Type="Text",Text="Status",Position={12,105},Size={71,14},FontSize=12,HTextAlign="Center",Color=colors.Text})
   layout["PanelStatus"] = {PrettyName="Panel~Status", Style="LED", Color=colors.Blue, OffColor=colors.DarkRed, UnlinkOffColor=true, CornerRadius=6, Position={147,120}, Size={20,20} }
-]]
 -- Inputs
   table.insert(graphics,{Type="Header",Text="Input",Position={15,155},Size={285,14},FontSize=12,HTextAlign="Center",Color=colors.Header})
   table.insert(graphics,{Type="Text",Text="Current Input",Position={12,174},Size={75,20},FontSize=12,HTextAlign="Right", VTextAlign="Middle", Color=colors.Text})

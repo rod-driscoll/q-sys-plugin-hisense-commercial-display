@@ -1,7 +1,7 @@
 PluginInfo = {
   Name = "Hisense~BM/DM Series Display v1.0-DEV-UI",
-  Version = "1.0.1",
-  BuildVersion = "1.0.1.0",
+  Version = "1.0.2",
+  BuildVersion = "1.0.2",
   Id = "Hisense BM/DM Series Display v1.0-DEV-UI",
   Author = "Rod Driscoll<rod@theavitgroup.com.au>",
   Description = "Control and Status for Hisense BM/DM Series Displays.",
@@ -83,7 +83,7 @@ function GetProperties()
   table.insert(props,{
     Name  = "Display Series",
     Type    = "enum",
-    Choices = {"BM", "DM", "GM", "Auto" },
+    Choices = {"BM", "DM", "GM", "M", "WR", "MR", "DMv1", "Auto" }, --"E" not implemented yet
     Value   = "Auto"
   })
 	return props

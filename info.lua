@@ -39,12 +39,16 @@
   
   20250610 v1.0.2 Rod Driscoll<rod@theavitgroup.com.au>
     ~ Removed Panel controls, they are not supported by the BM/DM series displays.
+
+  20251001 v1.0.3 Rod Driscoll<rod@theavitgroup.com.au>
+    ~ Renamed 'DM' to 'DMv1' and added 'DM' because different models of DM have different input commands
+    ~ removed 'PanelStatus' completely because it causes some models to reboot and erase
 ]]
 
 PluginInfo = {
   Name = "Hisense~BM/DM Series Display v1.0",
-  Version = "1.0.2",
-  BuildVersion = "1.0.2",
+  Version = "1.0.3",
+  BuildVersion = "1.0.3",
   Id = "Hisense BM/DM Series Display v1.0",
   Author = "Rod Driscoll<rod@theavitgroup.com.au>",
   Description = "Control and Status for Hisense BM/DM Series Displays.",
